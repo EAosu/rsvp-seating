@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Event {
+  id           String        @id @default(cuid())
+  title        String
+  eventDate    DateTime
+  venue        String?
+  households   Household[]
+  guests       Guest[]
+  tables       Table[]
+  invites      Invite[]
+  settingsJson Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Household {
+  id      String  @id @default(cuid())
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name    String
+  group   String? // צד כלה/חתן, חברים מהצבא...
+  phoneWa String // מספר ראשי להזמנה
+  guests  Guest[]
+  invite  Invite?
+  notes   String?
+}
+
+model Guest {
+  id             String     @id @default(cuid())
+  eventId        String
+  householdId    String
+  fullName       String
+  relation       String?
+  mealPreference String?
+  rsvpStatus     RsvpStatus @default(PENDING)
+  tableId        String?
+  seatNumber     Int?
+  phoneWa        String?    @db.VarChar(32)
+
+  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  table     Table?    @relation(fields: [tableId], references: [id])
+}
+
+model Invite {
+  id          String       @id @default(cuid())
+  eventId     String
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  householdId String?      // כבר לא unique
+  household   Household?   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+
+  phoneWa     String       @db.VarChar(32)  // ההזמנה היא פר-מספר
+  waThreadId  String?
+  status      InviteStatus @default(SENT)
+  lastSentAt  DateTime?
+  rsvpToken   String?      @unique
+
+  @@unique([eventId, phoneWa])             // דה-דופ פר-מספר
+}
+
+model Table {
+  id       String  @id @default(cuid())
+  eventId  String
+  event    Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name     String
+  capacity Int
+  guests   Guest[]
+  notes    String?
+}
+
+enum RsvpStatus {
+  PENDING
+  YES
+  NO
+  MAYBE
+}
+
+enum InviteStatus {
+  DRAFT
+  SENT
+  DELIVERED
+  READ
+  REMINDER_SENT
+}
