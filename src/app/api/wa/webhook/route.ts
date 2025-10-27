@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { updateRsvpByPhone } from "@/server/rsvp-update"
+import { prisma } from "@/server/db"
+import { canonPhone } from "@/lib/phone"
+import { publish } from "@/server/rsvp-bus"
 
-export async function GET(req: NextRequest) {
-    const url = new URL(req.url)
-    const mode = url.searchParams.get("hub.mode")
-    const token = url.searchParams.get("hub.verify_token")
-    const challenge = url.searchParams.get("hub.challenge")
-    if (mode === "subscribe" && token === process.env.WA_VERIFY_TOKEN) {
-        return new NextResponse(challenge, { status: 200 })
-    }
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+function statusFromPayload(raw: string): "YES"|"MAYBE"|"NO" {
+    const up = (raw || "").toUpperCase()
+    if (up.includes("YES") || up.includes("מאשר")) return "YES"
+    if (up.includes("MAYBE") || up.includes("אולי")) return "MAYBE"
+    return "NO"
 }
 
 export async function POST(req: NextRequest) {
@@ -20,7 +18,7 @@ export async function POST(req: NextRequest) {
             const change = entry?.changes?.[0]?.value
             const messages = change?.messages ?? []
             for (const msg of messages) {
-                const from = String(msg.from || "")
+                const from = canonPhone(String(msg.from || ""))
                 let raw = ""
 
                 if (msg.type === "interactive" && msg.interactive?.button_reply) {
@@ -32,8 +30,48 @@ export async function POST(req: NextRequest) {
                     continue
                 }
 
-                const ok = await updateRsvpByPhone(from, raw)
-                console.log("[WA] reply:", { from, raw, ok }) // לוג דיבוג
+                const st = statusFromPayload(raw)
+
+                // נזהה את ה-Contact לפי המספר (ייתכן בכמה אירועים – ניקח את ההזמנה האחרונה)
+                const lastInvite = await prisma.invite.findFirst({
+                    where: { contact: { phoneWa: from } },
+                    orderBy: { lastSentAt: "desc" },
+                    include: {
+                        event: true,
+                        contact: { include: { guestLinks: { include: { guest: true } } } },
+                    },
+                })
+
+                // אם לא מצאנו הזמנה, נחפש Contact אחרון (לפי יצירה)
+                const contact = lastInvite?.contact || await prisma.contact.findFirst({
+                    where: { phoneWa: from },
+                    orderBy: { id: "desc" },
+                    include: { event: true, guestLinks: { include: { guest: true } } },
+                })
+
+                if (!contact) continue
+
+                // עדכון האורחים המשויכים לפי scope
+                const guestIds = contact.guestLinks.map(gl => gl.guest.id)
+                const primaryGuestId = contact.guestLinks.find(gl => gl.role === "PRIMARY")?.guest.id
+                const toUpdate = contact.scope === "ALL_LINKED" ? guestIds : (primaryGuestId ? [primaryGuestId] : [])
+
+                if (toUpdate.length) {
+                    const data: any = { rsvpStatus: st }
+                    if (st === "NO") Object.assign(data, { tableId: null, seatNumber: null })
+                    await prisma.guest.updateMany({ where: { id: { in: toUpdate } }, data })
+
+                    publish(contact.eventId, {
+                        type: "rsvp_update",
+                        guestIds: toUpdate,
+                        rsvpStatus: st,
+                    })
+                }
+
+                // עדכן סטטוס invite אם קיים
+                if (lastInvite) {
+                    await prisma.invite.update({ where: { id: lastInvite.id }, data: { status: "READ" } }).catch(()=>{})
+                }
             }
         }
     } catch (e) {

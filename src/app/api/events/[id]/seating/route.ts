@@ -1,48 +1,62 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/server/db"
-import { z } from "zod"
 
-export async function GET(
-    _req: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
 
-    const event = await prisma.event.findUnique({
-        where: { id },
-        include: {
-            tables: { select: { id: true, name: true, capacity: true } },
-            guests: { select: { id: true, fullName: true, rsvpStatus: true, tableId: true } }
-        }
-    })
-    if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 })
+    const [tables, guests] = await Promise.all([
+        prisma.table.findMany({
+            where: { eventId: id },
+            orderBy: [{ name: "asc" }],
+            select: { id: true, name: true, capacity: true },
+        }),
+        prisma.guest.findMany({
+            where: { eventId: id },
+            orderBy: [{ fullName: "asc" }],
+            select: {
+                id: true,
+                fullName: true,
+                rsvpStatus: true,
+                tableId: true,
+                householdId: true, // חשוב לגרירה משפחתית
+            },
+        }),
+    ])
 
-    return NextResponse.json({ tables: event.tables, guests: event.guests })
+    return NextResponse.json({ tables, guests })
 }
 
-const SaveSchema = z.object({
-    guestId: z.string(),
-    tableId: z.string().nullable()
-})
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id: eventId } = await params
+    const body = await req.json().catch(() => ({}))
 
-export async function POST(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    const { id } = await params
+    // תמיכה ב-bulk
+    if (Array.isArray(body?.updates)) {
+        const updates: Array<{ guestId: string; tableId: string | null }> = body.updates
+        if (!updates.length) return NextResponse.json({ ok: true, updated: 0 })
 
-    const body = await req.json()
-    const parsed = SaveSchema.safeParse(body)
-    if (!parsed.success) return NextResponse.json({ error: "Bad payload" }, { status: 400 })
-
-    const guest = await prisma.guest.findFirst({ where: { id: parsed.data.guestId, eventId: id } })
-    if (!guest) return NextResponse.json({ error: "Guest not found" }, { status: 404 })
-
-    if (parsed.data.tableId) {
-        const table = await prisma.table.findFirst({ where: { id: parsed.data.tableId, eventId: id } })
-        if (!table) return NextResponse.json({ error: "Table not found" }, { status: 404 })
+        await prisma.$transaction(
+            updates.map(u =>
+                prisma.guest.update({
+                    where: { id: u.guestId },
+                    data: { tableId: u.tableId, seatNumber: null },
+                }),
+            ),
+        )
+        return NextResponse.json({ ok: true, updated: updates.length })
     }
 
-    await prisma.guest.update({ where: { id: guest.id }, data: { tableId: parsed.data.tableId } })
-    return NextResponse.json({ ok: true })
+    // יחיד
+    const { guestId, tableId } = body || {}
+    if (!guestId) return NextResponse.json({ error: "guestId is required" }, { status: 400 })
+
+    await prisma.guest.update({
+        where: { id: guestId },
+        data: { tableId: tableId ?? null, seatNumber: null },
+    })
+
+    return NextResponse.json({ ok: true, updated: 1 })
 }

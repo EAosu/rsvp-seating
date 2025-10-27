@@ -8,63 +8,98 @@ datasource db {
 }
 
 model Event {
-  id           String        @id @default(cuid())
+  id           String      @id @default(cuid())
   title        String
   eventDate    DateTime
   venue        String?
-  households   Household[]
+  households   Household[] // נשמר לתאימות אחורה (אופציונלי)
   guests       Guest[]
   tables       Table[]
   invites      Invite[]
+  contacts     Contact[] // כתובות ווטסאפ לאירוע זה
   settingsJson Json?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 }
 
 model Household {
-  id      String  @id @default(cuid())
+  id      String   @id @default(cuid())
   eventId String
-  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   name    String
   group   String? // צד כלה/חתן, חברים מהצבא...
-  phoneWa String // מספר ראשי להזמנה
+  phoneWa String // מספר ראשי "משפחתי" (היסטורי/אופציונלי)
   guests  Guest[]
-  invite  Invite?
+  invites Invite[] // כעת 1:Many
   notes   String?
 }
 
 model Guest {
   id             String     @id @default(cuid())
   eventId        String
-  householdId    String
+  householdId    String? // אופציונלי - אפשר אורחים ללא Household
   fullName       String
   relation       String?
+  group          String? // קבוצה/תיוג (צד חתן/כלה/חברים...)
   mealPreference String?
   rsvpStatus     RsvpStatus @default(PENDING)
   tableId        String?
   seatNumber     Int?
-  phoneWa        String?    @db.VarChar(32)
+  phoneWa        String?    @db.VarChar(32) // טלפון אישי (לא חובה)
 
-  event     Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  household Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  table     Table?    @relation(fields: [tableId], references: [id])
+  event     Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  household Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
+  table     Table?     @relation(fields: [tableId], references: [id])
+
+  contactLinks ContactGuest[]
+}
+
+model Contact {
+  id          String    @id @default(cuid())
+  eventId     String
+  event       Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  phoneWa     String    @db.VarChar(32)
+  displayName String?
+  scope       RsvpScope @default(ALL_LINKED) // איך להחיל תשובת RSVP מהמספר הזה
+  notes       String?
+
+  invites    Invite[]
+  guestLinks ContactGuest[]
+
+  @@unique([eventId, phoneWa]) // פעם אחת לכל מספר באירוע
+}
+
+model ContactGuest {
+  contactId String
+  guestId   String
+  role      ContactRole @default(PRIMARY) // PRIMARY/PROXY/OTHER
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  guest   Guest   @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, guestId])
 }
 
 model Invite {
-  id          String       @id @default(cuid())
-  eventId     String
-  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  householdId String?      // כבר לא unique
-  household   Household?   @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  // תמיכה לאחור: ייתכנו הזמנות שהיו צמודות ל-Household
+  householdId String?
+  household   Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
 
-  phoneWa     String       @db.VarChar(32)  // ההזמנה היא פר-מספר
-  waThreadId  String?
-  status      InviteStatus @default(SENT)
-  lastSentAt  DateTime?
-  rsvpToken   String?      @unique
+  // המודל החדש: הזמנה פר-Contact (דה-דופ לפי eventId+contactId)
+  contactId String?
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
-  @@unique([eventId, phoneWa])             // דה-דופ פר-מספר
+  phoneWa    String?      @db.VarChar(32) // פאלבק/היסטוריה
+  waThreadId String?
+  status     InviteStatus @default(SENT)
+  lastSentAt DateTime?
+  rsvpToken  String?      @unique
+
+  @@unique([eventId, contactId]) // מותר NULL בקומפוזיט ב-Postgres
 }
 
 model Table {
@@ -90,4 +125,15 @@ enum InviteStatus {
   DELIVERED
   READ
   REMINDER_SENT
+}
+
+enum RsvpScope {
+  ALL_LINKED
+  PRIMARY_ONLY
+}
+
+enum ContactRole {
+  PRIMARY
+  PROXY
+  OTHER
 }
