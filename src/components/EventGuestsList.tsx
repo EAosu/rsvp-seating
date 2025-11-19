@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { useParams } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { Card } from "@/components/ui/card"
 
 type G = {
     id: string
@@ -61,11 +62,11 @@ export default function EventGuestsList({ initial }: { initial?: G[] }) {
     const Badge = ({ s }: { s: G["status"] }) => (
         <span
             className={cn(
-                "inline-flex items-center rounded-full px-2 py-0.5 text-xs",
-                s === "YES" && "bg-green-100 text-green-700",
-                s === "NO" && "bg-red-100 text-red-700",
-                s === "MAYBE" && "bg-amber-100 text-amber-700",
-                s === "PENDING" && "bg-gray-100 text-gray-700"
+                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border-2 transition-all hover:scale-110",
+                s === "YES" && "bg-gradient-to-r from-emerald-400 to-green-500 text-white border-emerald-300 shadow-md",
+                s === "NO" && "bg-gradient-to-r from-red-400 to-rose-500 text-white border-red-300 shadow-md",
+                s === "MAYBE" && "bg-gradient-to-r from-amber-400 to-yellow-500 text-white border-amber-300 shadow-md",
+                s === "PENDING" && "bg-gradient-to-r from-gray-400 to-slate-500 text-white border-gray-300 shadow-md"
             )}
         >
       {s === "YES" ? "מאשר/ת" : s === "NO" ? "לא מגיע/ה" : s === "MAYBE" ? "אולי" : "ממתין/ה"}
@@ -74,21 +75,23 @@ export default function EventGuestsList({ initial }: { initial?: G[] }) {
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <div className="flex flex-col gap-3">
                 <input
-                    className="w-full sm:w-80 rounded-xl border px-3 py-2 text-sm"
+                    className="w-full rounded-lg border-2 border-indigo-200 bg-white/90 backdrop-blur-sm px-4 py-2.5 text-sm shadow-md focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:shadow-lg transition-all"
                     placeholder="חיפוש לפי שם/קבוצה/שולחן/טלפון…"
                     value={q}
                     onChange={e => setQ(e.target.value)}
                 />
-                <div className="flex gap-2 text-sm">
+                <div className="flex flex-wrap gap-2 text-sm">
                     {(["ALL","YES","MAYBE","NO","PENDING"] as const).map(k => (
                         <button
                             key={k}
                             onClick={() => setFilter(k)}
                             className={cn(
-                                "rounded-xl px-3 py-1 border",
-                                filter===k ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-700 hover:bg-gray-100"
+                                "rounded-lg px-3 sm:px-4 py-2 font-medium border-2 transition-all duration-300 text-xs sm:text-sm",
+                                filter===k 
+                                    ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-indigo-500 shadow-lg" 
+                                    : "bg-white/90 text-gray-700 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-300"
                             )}
                         >
                             {k==="ALL"?"הכול":k==="YES"?"מאשרים":k==="MAYBE"?"אולי":k==="NO"?"לא": "ממתינים"}
@@ -97,37 +100,91 @@ export default function EventGuestsList({ initial }: { initial?: G[] }) {
                 </div>
             </div>
 
-            <div className="rounded-2xl border overflow-hidden">
-                <table className="w-full text-sm">
-                    <thead className="bg-gray-50">
-                    <tr className="text-gray-600">
-                        <th className="p-2 text-right w-[28%]">אורח/ת</th>
-                        <th className="p-2 text-right w-[10%]">סטטוס</th>
-                        <th className="p-2 text-right w-[12%]">שולחן</th>
-                        <th className="p-2 text-right w-[12%]">קבוצה</th>
-                        <th className="p-2 text-right w-[22%]">משפחה</th>
-                        <th className="p-2 text-right w-[16%]">טלפון</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {loading ? (
-                        <tr><td colSpan={6} className="p-4 text-center text-gray-500">טוען…</td></tr>
-                    ) : filtered.length ? (
-                        filtered.map(g => (
-                            <tr key={g.id} className="border-t">
-                                <td className="p-2">{g.name}{g.relation ? <span className="text-gray-500"> · {g.relation}</span> : null}</td>
-                                <td className="p-2"><Badge s={g.status} /></td>
-                                <td className="p-2">{g.table ?? "-"}</td>
-                                <td className="p-2">{g.group ?? "-"}</td>
-                                <td className="p-2">{g.household}</td>
-                                <td className="p-2 ltr">{g.phone ?? "-"}</td>
-                            </tr>
-                        ))
-                    ) : (
-                        <tr><td colSpan={6} className="p-4 text-center text-gray-500">לא נמצאו פריטים</td></tr>
-                    )}
-                    </tbody>
-                </table>
+            {/* Desktop Table */}
+            <div className="hidden md:block rounded-2xl overflow-hidden" style={{
+              background: 'rgba(255, 255, 255, 0.7)',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+              border: '1px solid rgba(255, 255, 255, 0.3)',
+              boxShadow: '0 8px 32px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.6)'
+            }}>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b-2 border-indigo-200">
+                        <tr>
+                            <th className="px-4 lg:px-6 py-3 lg:py-4 text-right text-xs font-bold text-indigo-700 uppercase tracking-wider">אורח/ת</th>
+                            <th className="px-4 lg:px-6 py-3 lg:py-4 text-right text-xs font-bold text-indigo-700 uppercase tracking-wider">סטטוס</th>
+                            <th className="px-4 lg:px-6 py-3 lg:py-4 text-right text-xs font-bold text-indigo-700 uppercase tracking-wider">שולחן</th>
+                            <th className="px-4 lg:px-6 py-3 lg:py-4 text-right text-xs font-bold text-indigo-700 uppercase tracking-wider">קבוצה</th>
+                            <th className="px-4 lg:px-6 py-3 lg:py-4 text-right text-xs font-bold text-indigo-700 uppercase tracking-wider">משפחה</th>
+                            <th className="px-4 lg:px-6 py-3 lg:py-4 text-right text-xs font-bold text-indigo-700 uppercase tracking-wider">טלפון</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {loading ? (
+                            <tr><td colSpan={6} className="p-8 text-center text-gray-500">טוען…</td></tr>
+                        ) : filtered.length ? (
+                            filtered.map(g => (
+                                <tr key={g.id} className="border-b border-gray-100/50 hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-purple-50/50 transition-all duration-300">
+                                    <td className="px-4 lg:px-6 py-3 lg:py-4 font-medium text-gray-900">{g.name}{g.relation ? <span className="text-gray-500 text-sm"> · {g.relation}</span> : null}</td>
+                                    <td className="px-4 lg:px-6 py-3 lg:py-4"><Badge s={g.status} /></td>
+                                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-gray-700">{g.table ?? "-"}</td>
+                                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-gray-700">{g.group ?? "-"}</td>
+                                    <td className="px-4 lg:px-6 py-3 lg:py-4 text-gray-700">{g.household}</td>
+                                    <td className="px-4 lg:px-6 py-3 lg:py-4 ltr text-gray-700 font-mono">{g.phone ?? "-"}</td>
+                                </tr>
+                            ))
+                        ) : (
+                            <tr><td colSpan={6} className="p-4 text-center text-gray-500">לא נמצאו פריטים</td></tr>
+                        )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3">
+                {loading ? (
+                    <div className="p-8 text-center text-gray-500">טוען…</div>
+                ) : filtered.length ? (
+                    filtered.map(g => (
+                        <Card key={g.id} className="p-4">
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-base font-semibold text-gray-900 mb-1">
+                                        {g.name}
+                                    </div>
+                                    {g.relation && (
+                                        <div className="text-sm text-gray-500 mb-2">
+                                            {g.relation}
+                                        </div>
+                                    )}
+                                    <Badge s={g.status} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <span className="text-gray-500 text-xs">שולחן:</span>
+                                    <div className="text-gray-900 mt-0.5">{g.table ?? "-"}</div>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500 text-xs">קבוצה:</span>
+                                    <div className="text-gray-900 mt-0.5">{g.group ?? "-"}</div>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500 text-xs">משפחה:</span>
+                                    <div className="text-gray-900 mt-0.5">{g.household}</div>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500 text-xs">טלפון:</span>
+                                    <div className="text-gray-900 ltr font-mono mt-0.5">{g.phone ?? "-"}</div>
+                                </div>
+                            </div>
+                        </Card>
+                    ))
+                ) : (
+                    <div className="p-8 text-center text-gray-500">לא נמצאו פריטים</div>
+                )}
             </div>
         </div>
     )

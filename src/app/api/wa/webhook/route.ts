@@ -10,6 +10,27 @@ function statusFromPayload(raw: string): "YES"|"MAYBE"|"NO" {
     return "NO"
 }
 
+// Meta webhook verification (GET request)
+export async function GET(req: NextRequest) {
+    const searchParams = req.nextUrl.searchParams
+    const mode = searchParams.get("hub.mode")
+    const token = searchParams.get("hub.verify_token")
+    const challenge = searchParams.get("hub.challenge")
+
+    const verifyToken = process.env.WA_WEBHOOK_VERIFY_TOKEN
+
+    if (!verifyToken) {
+        console.error("WA_WEBHOOK_VERIFY_TOKEN environment variable is not set")
+        return NextResponse.json({ error: "Webhook verification not configured" }, { status: 500 })
+    }
+
+    if (mode === "subscribe" && token === verifyToken) {
+        return new NextResponse(challenge, { status: 200 })
+    }
+
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+}
+
 export async function POST(req: NextRequest) {
     const data = await req.json()
     try {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { subscribe } from "@/server/rsvp-bus"
+import { requireEventOwnership } from "@/lib/authorization"
 
 export const dynamic = "force-dynamic"
 
@@ -8,6 +9,12 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const { id } = await params
+    
+    try {
+        await requireEventOwnership(id)
+    } catch (error) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     let closed = false
     let hb: ReturnType<typeof setInterval> | null = null

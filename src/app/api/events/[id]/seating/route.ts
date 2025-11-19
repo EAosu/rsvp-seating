@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/server/db"
+import { requireEventOwnership } from "@/lib/authorization"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params
+    
+    try {
+        await requireEventOwnership(id)
+    } catch (error) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     const [tables, guests] = await Promise.all([
         prisma.table.findMany({
@@ -31,6 +38,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id: eventId } = await params
+    
+    try {
+        await requireEventOwnership(eventId)
+    } catch (error) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
     const body = await req.json().catch(() => ({}))
 
     // תמיכה ב-bulk

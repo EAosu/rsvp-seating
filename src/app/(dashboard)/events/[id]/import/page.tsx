@@ -102,8 +102,8 @@ export default function ImportGuestsPage() {
 
     return (
         <div className="container-page rtl">
-            <h1 className="title mb-1">ייבוא מוזמנים</h1>
-            <p className="sub mb-6">שניים על השעון: צור תצוגה מקדימה → עדכן טעויות → שמור.</p>
+            <h1 className="title mb-3 relative">ייבוא מוזמנים</h1>
+            <p className="sub mb-6 text-gray-700 font-medium">שניים על השעון: צור תצוגה מקדימה → עדכן טעויות → שמור.</p>
 
             <div className="flex gap-3 mb-3">
                 <a href="/api/templates/guests.xlsx" className="underline">הורד תבנית Excel (מומלץ)</a>

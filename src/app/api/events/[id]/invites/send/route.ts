@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/server/db"
 import { canonPhone } from "@/lib/phone"
 import { sendRsvpQuick } from "@/server/wa"
+import { requireEventOwnership } from "@/lib/authorization"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -10,6 +11,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id: eventId } = await params
     const body = await req.json().catch(() => ({}))
     const onlyPending: boolean = body?.onlyPending ?? false
+
+    try {
+        await requireEventOwnership(eventId)
+    } catch (error) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     const event = await prisma.event.findUnique({ where: { id: eventId } })
     if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 })
@@ -119,7 +126,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
             await sendRsvpQuick(c.phoneWa, {
                 guestName: name,
-                businessName: "העסק שלך",
+                businessName: process.env.WA_BUSINESS_NAME || "העסק שלך",
                 eventTitle: event.title,
                 eventDate: new Date(event.eventDate).toLocaleDateString("he-IL"),
             })

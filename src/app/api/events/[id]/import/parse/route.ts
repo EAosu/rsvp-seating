@@ -3,9 +3,16 @@ import * as XLSX from "xlsx"
 import { parse as parseCsv } from "csv-parse/sync"
 import iconv from "iconv-lite"
 import { toPreviewRows } from "@/lib/guest-import"
+import { requireEventOwnership } from "@/lib/authorization"
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    await params // לא צריך את id כאן, אבל Next 15 דורש await
+    const { id } = await params
+    
+    try {
+        await requireEventOwnership(id)
+    } catch (error) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     const ctype = req.headers.get("content-type") || ""
     let logicalRows: any[] = []

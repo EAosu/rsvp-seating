@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/server/db"
 import { canonPhone } from "@/lib/phone"
+import { requireEventOwnership } from "@/lib/authorization"
 
 // טיפוס לוגי בסיסי של שורה שמגיעה מה-parse (לא חייב לייבא)
 type Row = {
@@ -80,6 +81,13 @@ async function linkGuestToContact(opts: {
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id: eventId } = await params
+    
+    try {
+        await requireEventOwnership(eventId)
+    } catch (error) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+    
     const body = await req.json()
     const rows: Row[] = Array.isArray(body?.rows) ? body.rows : []
 

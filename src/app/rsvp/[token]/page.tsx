@@ -75,8 +75,8 @@ export default function RSVPPage() {
     return (
         <div className="container-page rtl">
             <div className="mb-6">
-                <h1 className="title">{header?.title}</h1>
-                <p className="sub">תאריך: {header?.date}{header?.venue ? ` • מקום: ${header?.venue}` : ""}</p>
+                <h1 className="title mb-3 relative">{header?.title}</h1>
+                <p className="sub text-gray-700 font-medium">תאריך: {header?.date}{header?.venue ? ` • מקום: ${header?.venue}` : ""}</p>
             </div>
 
             <Card className="card">

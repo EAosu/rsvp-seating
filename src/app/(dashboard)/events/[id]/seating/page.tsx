@@ -235,11 +235,11 @@ export default function SeatingPage() {
 
     return (
         <div className="container-page rtl">
-            <h1 className="title mb-2">סידורי הושבה</h1>
+            <h1 className="title mb-3 relative">סידורי הושבה</h1>
 
             <TableManager onChanged={handleTablesChanged} />
 
-            <h3 className="title mb-2 mt-5">שיבוץ</h3>
+            <h3 className="title mb-3 mt-8 relative text-2xl">שיבוץ</h3>
             <Legend />
             <AutoSeatButton />
 
