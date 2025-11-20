@@ -6,16 +6,41 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ tok
     const { token } = await params
     const invite = await prisma.invite.findUnique({
         where: { rsvpToken: token },
-        include: { household: { include: { guests: true } }, event: true }
+        include: { 
+            household: { include: { guests: true } }, 
+            contact: { include: { guestLinks: { include: { guest: true } } } },
+            event: true 
+        }
     })
     if (!invite) return NextResponse.json({ error: "Invalid token" }, { status: 404 })
-    return NextResponse.json({
-        event: { title: invite.event.title, date: invite.event.eventDate, venue: invite.event.venue },
-        household: { name: invite.household.name, group: invite.household.group },
-        guests: invite.household.guests.map(g => ({
-            id: g.id, fullName: g.fullName, mealPreference: g.mealPreference, rsvpStatus: g.rsvpStatus
+    
+    // Handle both household-based and contact-based invites
+    if (invite.household) {
+        return NextResponse.json({
+            event: { title: invite.event.title, date: invite.event.eventDate, venue: invite.event.venue },
+            household: { name: invite.household.name, group: invite.household.group },
+            guests: invite.household.guests.map(g => ({
+                id: g.id, fullName: g.fullName, mealPreference: g.mealPreference, rsvpStatus: g.rsvpStatus
+            }))
+        })
+    }
+    
+    // Contact-based invite
+    if (invite.contact) {
+        const guests = invite.contact.guestLinks.map(link => ({
+            id: link.guest.id,
+            fullName: link.guest.fullName,
+            mealPreference: link.guest.mealPreference,
+            rsvpStatus: link.guest.rsvpStatus
         }))
-    })
+        return NextResponse.json({
+            event: { title: invite.event.title, date: invite.event.eventDate, venue: invite.event.venue },
+            household: { name: invite.contact.displayName || invite.contact.phoneWa, group: null },
+            guests
+        })
+    }
+    
+    return NextResponse.json({ error: "Invalid invite structure" }, { status: 400 })
 }
 
 const RsvpSchema = z.object({
@@ -32,7 +57,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     const { token } = await params
     const invite = await prisma.invite.findUnique({
         where: { rsvpToken: token },
-        include: { household: { include: { guests: true } } }
+        include: { 
+            household: { include: { guests: true } },
+            contact: { include: { guestLinks: { include: { guest: true } } } }
+        }
     })
     if (!invite) return NextResponse.json({ error: "Invalid token" }, { status: 404 })
 
@@ -47,17 +75,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
             data: {
                 rsvpStatus: g.rsvpStatus,
                 mealPreference: g.mealPreference ?? undefined,
-                notes: g.notes ?? undefined
             }
         })
     ))
-
-    if (parsed.data.attendeesCount !== undefined) {
-        await prisma.guest.updateMany({
-            where: { householdId: invite.householdId },
-            data: { attendeesCount: parsed.data.attendeesCount }
-        })
-    }
 
     return NextResponse.json({ ok: true })
 }
