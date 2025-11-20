@@ -142,7 +142,7 @@ export default function GuestsManagementPage() {
     }, [guests, searchQuery, statusFilter, groupFilter])
 
     const uniqueGroups = useMemo(() => {
-        return Array.from(new Set(guests.map((g) => g.group).filter(Boolean)))
+        return Array.from(new Set(guests.map((g) => g.group).filter((g): g is string => g !== null && g !== undefined)))
     }, [guests])
 
     function resetForm() {
