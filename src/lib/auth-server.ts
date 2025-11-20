@@ -1,2 +1,2 @@
-// Re-export auth from the route handler
-export { auth } from "@/app/api/auth/[...nextauth]/route"
+// Re-export auth from the auth instance
+export { auth } from "@/lib/auth-instance"
