@@ -30,16 +30,26 @@ export default async function EventPage({ params }: { params: Promise<{ id: stri
     })
     if (!event) return <div className="container-page rtl">אירוע לא נמצא</div>
 
-    // מונים (ישיר מה-DB)
-    const [total, yes, no, maybe, pending, contactsTotal, contactsSent] = await Promise.all([
-        prisma.guest.count({ where: { eventId: id } }),
-        prisma.guest.count({ where: { eventId: id, rsvpStatus: "YES" } }),
-        prisma.guest.count({ where: { eventId: id, rsvpStatus: "NO" } }),
-        prisma.guest.count({ where: { eventId: id, rsvpStatus: "MAYBE" } }),
-        prisma.guest.count({ where: { eventId: id, rsvpStatus: "PENDING" } }),
+    // Optimized: Use aggregation to reduce connection usage in serverless environments
+    // This reduces 7 separate queries to 3 queries (more efficient for connection pooling)
+    const [guestStats, contactsTotal, contactsSent] = await Promise.all([
+        // Single aggregation query for all guest counts
+        prisma.guest.groupBy({
+            by: ["rsvpStatus"],
+            where: { eventId: id },
+            _count: { _all: true },
+        }),
         prisma.contact.count({ where: { eventId: id } }),
         prisma.invite.count({ where: { eventId: id } }),
     ])
+
+    // Extract counts from aggregation result
+    const statsMap = new Map(guestStats.map(s => [s.rsvpStatus, s._count._all]))
+    const total = guestStats.reduce((sum, s) => sum + s._count._all, 0)
+    const yes = statsMap.get("YES") || 0
+    const no = statsMap.get("NO") || 0
+    const maybe = statsMap.get("MAYBE") || 0
+    const pending = statsMap.get("PENDING") || 0
 
     return (
         <main className="container-page rtl py-8" role="main" aria-label="פרטי אירוע">

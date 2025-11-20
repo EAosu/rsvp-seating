@@ -114,8 +114,45 @@ Add these in your Vercel project settings (Settings → Environment Variables):
 
 ### Troubleshooting
 
+#### Database Connection Errors in Production
+
+If you're seeing "Database connection error. Please check your database configuration." in production but it works locally, check the following:
+
+1. **Verify DATABASE_URL is set in Vercel**:
+   - Go to your Vercel project → Settings → Environment Variables
+   - Ensure `DATABASE_URL` is set for Production environment
+   - The value should be your PostgreSQL connection string
+
+2. **Use Connection Pooling (REQUIRED for Serverless)**:
+   - Serverless functions (Vercel) require connection pooling
+   - **If using Vercel Postgres**: The connection string is automatically pooled
+   - **If using Supabase**: Use the "Connection Pooling" connection string (port 6543) instead of direct connection (port 5432)
+   - **If using Neon**: Use the pooled connection string (ends with `?sslmode=require` or includes pooling parameters)
+   - **If using other providers**: Look for a "pooled" or "transaction" connection string option
+   
+   Example pooled connection string format:
+   ```
+   postgresql://user:password@host:6543/database?sslmode=require
+   ```
+   
+   **DO NOT use direct connection strings** (port 5432) in production on Vercel - they will fail!
+
+3. **Run Database Migrations**:
+   - Migrations are now automatically run during build (configured in `vercel.json`)
+   - If migrations fail, you can run them manually:
+     ```bash
+     npx prisma migrate deploy
+     ```
+   - Or use Vercel CLI: `vercel env pull` then `npx prisma migrate deploy`
+
+4. **Check Build Logs**:
+   - In Vercel dashboard, check the build logs for Prisma errors
+   - Look for "Can't reach database server" or "P1001" errors
+   - Verify that `prisma generate` and `prisma migrate deploy` completed successfully
+
+#### Other Common Issues
+
 - **Build fails**: Check that all environment variables are set
-- **Database connection errors**: Verify `DATABASE_URL` is correct and database is accessible
 - **Prisma errors**: Ensure `postinstall` script ran successfully (check build logs)
 - **NextAuth errors**: Verify `NEXTAUTH_SECRET` and `NEXTAUTH_URL` are set correctly
 
