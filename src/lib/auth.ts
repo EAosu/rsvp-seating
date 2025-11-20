@@ -20,37 +20,42 @@ export const authOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            return null
+          }
+
+          const parsed = loginSchema.safeParse({
+            email: credentials.email,
+            password: credentials.password,
+          })
+
+          if (!parsed.success) {
+            return null
+          }
+
+          const user = await prisma.user.findUnique({
+            where: { email: parsed.data.email },
+          })
+
+          if (!user || !user.password) {
+            return null
+          }
+
+          const isValid = await bcrypt.compare(parsed.data.password, user.password)
+
+          if (!isValid) {
+            return null
+          }
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          }
+        } catch (error) {
+          console.error("Authorization error:", error)
           return null
-        }
-
-        const parsed = loginSchema.safeParse({
-          email: credentials.email,
-          password: credentials.password,
-        })
-
-        if (!parsed.success) {
-          return null
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email },
-        })
-
-        if (!user || !user.password) {
-          return null
-        }
-
-        const isValid = await bcrypt.compare(parsed.data.password, user.password)
-
-        if (!isValid) {
-          return null
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
         }
       },
     }),
@@ -89,6 +94,6 @@ export const authOptions = {
       return session
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET,
 }
 
